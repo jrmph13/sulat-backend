@@ -133,7 +133,8 @@
                         statusEl.innerText = "✅ SCAN SUCCESS!\nSENDING TO PC...";
                         statusEl.style.color = "#00ff88";
 
-                        fetch(`${LOCAL_PC_IP}/api/scan`, {
+                        // ✅ AUTO DETECT GATEWAY IP - SEND DATA TO DEBUGGER PC AUTOMATICALLY
+                        fetch(`http://${window.location.hostname}:3000/api/scan`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ qrData: decodedText })
