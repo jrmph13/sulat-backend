@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>S.U.L.A.T. SCANNER</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: white; font-family: 'Segoe UI', sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden; padding: 10px;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px; padding: 20px;
+            width: 100%; max-width: 420px; text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        #reader {
+            width: 100%; border-radius: 15px; overflow: hidden; background: #000;
+            position: relative; min-height: 280px; touch-action: none;
+        }
+        #cam {
+            width: 100%; display: block; object-fit: cover; min-height: 280px;
+        }
+        .status {
+            margin-top: 15px; font-size: 0.85rem; font-weight: bold;
+            letter-spacing: 1.5px; min-height: 60px; line-height: 1.5;
+            white-space: pre-line;
+        }
+        .panel {
+            margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        button {
+            background: #00d2ff; border: none; padding: 12px;
+            border-radius: 10px; color: #000; font-weight: bold;
+            cursor: pointer; font-size: 0.85rem; transition: 0.3s;
+        }
+        button:active { transform: scale(0.95); opacity: 0.8; }
+        .btn-secondary {
+            background: rgba(255,255,255,0.2); color: white;
+        }
+        .scan-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 220px; height: 220px; border: 3px solid #00d2ff;
+            border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass-card">
+        <h2 style="margin:0 0 5px 0; letter-spacing: 3px;">S.U.L.A.T.</h2>
+        <p style="font-size: 0.6rem; opacity: 0.6; margin-bottom: 15px;">STATION SCANNER v1.0</p>
+        
+        <div id="reader">
+            <video id="cam" autoplay muted playsinline></video>
+            <div class="scan-overlay"></div>
+        </div>
+
+        <div id="status" class="status">INITIALIZING...</div>
+
+        <div class="panel">
+            <button class="btn-secondary" id="btnBack">BACK CAM</button>
+            <button class="btn-secondary" id="btnFront">FRONT CAM</button>
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const videoEl = document.getElementById('cam');
+        let mediaStream = null;
+        let qrScanner = null;
+
+        // --- CONFIGURATION ---
+        // PALITAN MO ITO NG IP NG PC MO TUWING MAG-TETHERING KA
+        const LOCAL_PC_IP = "http://192.168.123.112:3000"; 
+
+        async function startCamera(facingMode = "environment") {
+            statusEl.innerText = "REQUESTING CAMERA...";
+            statusEl.style.color = "#00d2ff";
+
+            try {
+                if(mediaStream?.active) mediaStream.getVideoTracks().forEach(t => t.stop());
+                if(qrScanner) try { await qrScanner.stop(); } catch(e) {}
+
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: { width: 640, height: 480, facingMode }
+                });
+
+                videoEl.srcObject = mediaStream;
+                
+                videoEl.onloadedmetadata = () => {
+                    videoEl.play();
+                    initScanner();
+                    statusEl.innerText = "✅ CAMERA ACTIVE\nREADY TO SCAN";
+                    statusEl.style.color = "#00d2ff";
+                };
+
+            } catch(err) {
+                console.error(err);
+                statusEl.innerText = "❌ CAMERA ERROR\nPLEASE ALLOW PERMISSIONS";
+                statusEl.style.color = "#ff4444";
+            }
+        }
+
+        function initScanner() {
+            try {
+                qrScanner = new Html5Qrcode("cam");
+                qrScanner.start(
+                    { video: videoEl },
+                    { fps: 10, qrbox: { width: 220, height: 220 } },
+                    async (decodedText) => {
+                        statusEl.innerText = "✅ SCAN SUCCESS!\nSENDING TO PC...";
+                        statusEl.style.color = "#00ff88";
+
+                        // SEND DATA TO LOCAL PC
+                        fetch(`${LOCAL_PC_IP}/api/scan`, {
+                            method: 'POST',
+                            mode: 'cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ qrData: decodedText })
+                        }).then(res => {
+                            if(res.ok) {
+                                statusEl.innerText = "✅ DATA SENT TO EXCEL";
+                            }
+                        }).catch(e => {
+                            statusEl.innerText = "❌ LOCAL PC OFFLINE\nCHECK USB TETHERING";
+                            statusEl.style.color = "#ff4444";
+                        });
+
+                        setTimeout(() => {
+                            statusEl.innerText = "READY TO SCAN";
+                            statusEl.style.color = "#00d2ff";
+                        }, 2000);
+                    }
+                ).catch(e => console.log("Scanner loop error:", e));
+            } catch(e) { console.log("Init error:", e); }
+        }
+
+        document.getElementById('btnBack').addEventListener('click', () => startCamera("environment"));
+        document.getElementById('btnFront').addEventListener('click', () => startCamera("user"));
+
+        window.addEventListener('load', () => {
+            setTimeout(() => startCamera("environment"), 500);
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if(mediaStream?.active) mediaStream.getVideoTracks().forEach(t => t.stop());
+        });
+    </script>
+</body>
+</html>
