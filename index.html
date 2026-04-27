@@ -133,7 +133,7 @@
                         statusEl.innerText = "✅ SCAN SUCCESS!\nSENDING TO PC...";
                         statusEl.style.color = "#00ff88";
 
-                        fetch(`${window.location.origin}/api/scan`, {
+                        fetch(`${LOCAL_PC_IP}/api/scan`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ qrData: decodedText })
