@@ -12,173 +12,142 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-            color: white; font-family: 'Segoe UI', sans-serif;
+            color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex; justify-content: center; align-items: center;
             height: 100vh; overflow: hidden; padding: 10px;
         }
         .glass-card {
             background: rgba(255, 255, 255, 0.1);
-            -webkit-backdrop-filter: blur(10px);
-            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(15px);
+            backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px; padding: 20px;
-            width: 100%; max-width: 420px; text-align: center;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border-radius: 25px; padding: 25px;
+            width: 100%; max-width: 400px; text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
         }
         #reader {
-            width: 100%; border-radius: 15px; overflow: hidden; background: #000;
-            position: relative; min-height: 280px; touch-action: none;
-        }
-        #cam {
-            width: 100%; display: block; object-fit: cover; min-height: 280px;
+            width: 100%; border-radius: 20px; overflow: hidden; 
+            background: #000; position: relative; min-height: 250px;
+            border: 2px solid rgba(0, 210, 255, 0.3);
         }
         .status {
-            margin-top: 15px; font-size: 0.85rem; font-weight: bold;
-            letter-spacing: 1.5px; min-height: 60px; line-height: 1.5;
-            white-space: pre-line;
+            margin-top: 20px; font-size: 0.9rem; font-weight: bold;
+            letter-spacing: 1px; min-height: 50px; line-height: 1.4;
+            color: #00d2ff; text-transform: uppercase;
         }
         .panel {
-            margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+            margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
         }
         button {
-            background: #00d2ff; border: none; padding: 12px;
-            border-radius: 10px; color: #000; font-weight: bold;
-            cursor: pointer; font-size: 0.85rem; transition: 0.3s;
+            background: #00d2ff; border: none; padding: 15px;
+            border-radius: 12px; color: #000; font-weight: 800;
+            cursor: pointer; font-size: 0.8rem; transition: 0.2s;
+            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
         }
-        button:active { transform: scale(0.95); opacity: 0.8; }
+        button:active { transform: scale(0.95); }
         .btn-secondary {
-            background: rgba(255,255,255,0.2); color: white;
+            background: rgba(255, 255, 255, 0.15); color: white;
+            box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.2);
         }
         .scan-overlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 220px; height: 220px; border: 3px solid #00d2ff;
-            border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
-            pointer-events: none;
+            width: 200px; height: 200px; border: 2px solid #00d2ff;
+            border-radius: 15px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6);
+            pointer-events: none; z-index: 10;
+        }
+        .scan-line {
+            position: absolute; width: 100%; height: 2px;
+            background: #00d2ff; top: 0; left: 0;
+            animation: scan 2s linear infinite; box-shadow: 0 0 15px #00d2ff;
+        }
+        @keyframes scan {
+            0% { top: 0; } 100% { top: 100%; }
         }
     </style>
 </head>
 <body>
 
     <div class="glass-card">
-        <h2 style="margin:0 0 5px 0; letter-spacing: 3px;">S.U.L.A.T.</h2>
-        <p style="font-size: 0.6rem; opacity: 0.6; margin-bottom: 15px;">STATION SCANNER v1.0</p>
+        <h2 style="margin-bottom: 5px; letter-spacing: 5px; color: #00d2ff;">S.U.L.A.T.</h2>
+        <p style="font-size: 0.7rem; opacity: 0.5; margin-bottom: 20px;">SMART LIBRARY SCANNER v1.0</p>
         
         <div id="reader">
-            <video id="cam" autoplay muted playsinline></video>
-            <div class="scan-overlay"></div>
+            <div class="scan-overlay">
+                <div class="scan-line"></div>
+            </div>
         </div>
 
-        <div id="status" class="status">INITIALIZING...</div>
+        <div id="status" class="status">Initializing System...</div>
 
         <div class="panel">
-            <button class="btn-secondary" id="btnBack">BACK CAM</button>
-            <button class="btn-secondary" id="btnFront">FRONT CAM</button>
+            <button class="btn-secondary" onclick="switchCamera('environment')">BACK CAM</button>
+            <button class="btn-secondary" onclick="switchCamera('user')">FRONT CAM</button>
         </div>
     </div>
 
     <script>
         const statusEl = document.getElementById('status');
-        const videoEl = document.getElementById('cam');
-        let mediaStream = null;
-        let qrScanner = null;
+        let html5QrCode;
 
-        // --- CONFIGURATION ---
-        // PALITAN MO ITO NG IP NG PC MO TUWING MAG-TETHERING KA
-        const LOCAL_PC_IP = "http://192.168.100.129:3000"; 
+        // AUTOMATIC HOST DETECTION
+        // Uses the same IP/Hostname used to access this page
+        const API_URL = `${window.location.origin}/api/scan`;
 
-        async function startCamera(facingMode = "environment") {
-            statusEl.innerText = "REQUESTING CAMERA...";
-            statusEl.style.color = "#00d2ff";
+        function onScanSuccess(decodedText, decodedResult) {
+            statusEl.innerText = "Processing Scan...";
+            statusEl.style.color = "#00ff88";
 
-            try {
-                if(mediaStream?.active) mediaStream.getVideoTracks().forEach(t => t.stop());
-                if(qrScanner) try { await qrScanner.stop(); } catch(e) {}
-
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    audio: false,
-                    video: { width: 640, height: 480, facingMode }
-                });
-
-                videoEl.srcObject = mediaStream;
-                
-                videoEl.onloadedmetadata = () => {
-                    videoEl.play();
-                    initScanner();
-                    statusEl.innerText = "✅ CAMERA ACTIVE\nREADY TO SCAN";
-                    statusEl.style.color = "#00d2ff";
-                };
-
-            } catch(err) {
-                console.error(err);
-                statusEl.innerText = "❌ CAMERA ERROR\nPLEASE ALLOW PERMISSIONS";
+            fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qrData: decodedText })
+            })
+            .then(response => {
+                if(response.ok) {
+                    statusEl.innerText = "SUCCESS: DATA SENT TO PC";
+                    setTimeout(() => {
+                        statusEl.innerText = "READY TO SCAN";
+                        statusEl.style.color = "#00d2ff";
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                statusEl.innerText = "CONNECTION ERROR: Check Server";
                 statusEl.style.color = "#ff4444";
-            }
+            });
         }
 
-        function initScanner() {
-            try {
-                // ✅ THIS IS THE CORRECT WORKING WAY TO INITIALIZE QR SCANNER
-                // Do NOT pass existing video element - let Html5Qrcode create it
-                qrScanner = new Html5Qrcode("reader");
-                
-                const config = {
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 }
-                };
-
-                qrScanner.start(
-                    { facingMode: "environment" },
-                    config,
-                    async (decodedText) => {
-                        statusEl.innerText = "✅ SCAN SUCCESS!\nSENDING TO PC...";
-                        statusEl.style.color = "#00ff88";
-
-                        // ✅ AUTO IP DETECTION - USE EXACT SAME HOST/PORT THAT PAGE IS LOADED FROM
-                        fetch(`/api/scan`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ qrData: decodedText })
-                        }).then(res => {
-                            if(res.ok) {
-                                statusEl.innerText = "✅ DATA RECEIVED";
-                            }
-                        }).catch(e => {
-                            console.log("Send error:", e);
-                        });
-
-                        setTimeout(() => {
-                            statusEl.innerText = "READY TO SCAN";
-                            statusEl.style.color = "#00d2ff";
-                        }, 2000);
-                    },
-                    (errorMessage) => {
-                        // Ignore continuous scan errors (this is normal)
-                    }
-                ).then(() => {
-                    statusEl.innerText = "✅ SCANNER ACTIVE\nREADY TO SCAN";
-                    statusEl.style.color = "#00ff88";
-                    
-                    // Hide old video element
-                    videoEl.style.display = "none";
-                }).catch(err => {
-                    console.error("Scanner failed:", err);
-                    setTimeout(initScanner, 2000);
+        function startScanner(cameraMode) {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    initScanner(cameraMode);
                 });
-                
-            } catch(e) {
-                console.log("Scanner init error", e);
+            } else {
+                initScanner(cameraMode);
             }
         }
 
-        document.getElementById('btnBack').addEventListener('click', () => startCamera("environment"));
-        document.getElementById('btnFront').addEventListener('click', () => startCamera("user"));
+        function initScanner(cameraMode) {
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { fps: 15, qrbox: { width: 200, height: 200 } };
+            
+            html5QrCode.start(
+                { facingMode: cameraMode }, 
+                config, 
+                onScanSuccess
+            ).catch(err => {
+                statusEl.innerText = "Camera Access Denied";
+                statusEl.style.color = "#ff4444";
+            });
+        }
 
+        function switchCamera(mode) {
+            startScanner(mode);
+        }
+
+        // Auto-start back camera on load
         window.addEventListener('load', () => {
-            setTimeout(() => startCamera("environment"), 500);
-        });
-
-        window.addEventListener('beforeunload', () => {
-            if(mediaStream?.active) mediaStream.getVideoTracks().forEach(t => t.stop());
+            startScanner("environment");
         });
     </script>
 </body>
