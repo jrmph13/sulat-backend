@@ -117,36 +117,56 @@
 
         function initScanner() {
             try {
-                qrScanner = new Html5Qrcode("cam");
+                // ✅ THIS IS THE CORRECT WORKING WAY TO INITIALIZE QR SCANNER
+                // Do NOT pass existing video element - let Html5Qrcode create it
+                qrScanner = new Html5Qrcode("reader");
+                
+                const config = {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                };
+
                 qrScanner.start(
-                    { video: videoEl },
-                    { fps: 10, qrbox: { width: 220, height: 220 } },
+                    { facingMode: "environment" },
+                    config,
                     async (decodedText) => {
                         statusEl.innerText = "✅ SCAN SUCCESS!\nSENDING TO PC...";
                         statusEl.style.color = "#00ff88";
 
-                        // SEND DATA TO LOCAL PC
-                        fetch(`${LOCAL_PC_IP}/api/scan`, {
+                        fetch(`${window.location.origin}/api/scan`, {
                             method: 'POST',
-                            mode: 'cors',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ qrData: decodedText })
                         }).then(res => {
                             if(res.ok) {
-                                statusEl.innerText = "✅ DATA SENT TO EXCEL";
+                                statusEl.innerText = "✅ DATA RECEIVED";
                             }
                         }).catch(e => {
-                            statusEl.innerText = "❌ LOCAL PC OFFLINE\nCHECK USB TETHERING";
-                            statusEl.style.color = "#ff4444";
+                            console.log("Send error:", e);
                         });
 
                         setTimeout(() => {
                             statusEl.innerText = "READY TO SCAN";
                             statusEl.style.color = "#00d2ff";
                         }, 2000);
+                    },
+                    (errorMessage) => {
+                        // Ignore continuous scan errors (this is normal)
                     }
-                ).catch(e => console.log("Scanner loop error:", e));
-            } catch(e) { console.log("Init error:", e); }
+                ).then(() => {
+                    statusEl.innerText = "✅ SCANNER ACTIVE\nREADY TO SCAN";
+                    statusEl.style.color = "#00ff88";
+                    
+                    // Hide old video element
+                    videoEl.style.display = "none";
+                }).catch(err => {
+                    console.error("Scanner failed:", err);
+                    setTimeout(initScanner, 2000);
+                });
+                
+            } catch(e) {
+                console.log("Scanner init error", e);
+            }
         }
 
         document.getElementById('btnBack').addEventListener('click', () => startCamera("environment"));
